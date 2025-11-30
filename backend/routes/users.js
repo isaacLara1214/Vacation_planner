@@ -1,20 +1,54 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../db'); // expects pool.promise()
+const db = require('../db'); // Adjust path to point to your db.js
 
-// GET /api/users/:id
+// CREATE
+router.post('/', async (req, res) => {
+    const { Name, Email, Password } = req.body;
+    try {
+        const [result] = await db.query(
+            'INSERT INTO User (Name, Email, Password) VALUES (?, ?, ?)',
+            [Name, Email, Password]
+        );
+        res.status(201).json({ message: 'User created', userId: result.insertId });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// READ (One)
 router.get('/:id', async (req, res) => {
-  const id = parseInt(req.params.id, 10);
-  if (Number.isNaN(id)) return res.status(400).json({ error: 'Invalid user id' });
+    try {
+        const [rows] = await db.query('SELECT * FROM User WHERE User_ID = ?', [req.params.id]);
+        if (rows.length === 0) return res.status(404).json({ error: 'User not found' });
+        res.json(rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 
-  try {
-    const [rows] = await db.query('SELECT User_ID, Name, Email FROM `User` WHERE User_ID = ?', [id]);
-    if (rows.length === 0) return res.status(404).json({ error: 'User not found' });
-    res.json(rows[0]);
-  } catch (err) {
-    console.error('DB error:', err);
-    res.status(500).json({ error: 'Database error' });
-  }
+// UPDATE
+router.put('/:id', async (req, res) => {
+    const { Name, Email, Password } = req.body;
+    try {
+        await db.query(
+            'UPDATE User SET Name = ?, Email = ?, Password = ? WHERE User_ID = ?',
+            [Name, Email, Password, req.params.id]
+        );
+        res.json({ message: 'User updated' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// DELETE
+router.delete('/:id', async (req, res) => {
+    try {
+        await db.query('DELETE FROM User WHERE User_ID = ?', [req.params.id]);
+        res.json({ message: 'User deleted' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 module.exports = router;
