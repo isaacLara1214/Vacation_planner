@@ -16,6 +16,16 @@ router.post('/', async (req, res) => {
     }
 });
 
+// READ ALL - Add this route
+router.get('/', async (req, res) => {
+    try {
+        const [rows] = await db.query('SELECT User_ID, Name, Email FROM `User`');
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // READ (One)
 router.get('/:id', async (req, res) => {
     try {

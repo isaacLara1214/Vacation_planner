@@ -15,6 +15,16 @@ router.post('/', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+// READ (All)
+router.get('/', async (req, res) => {
+    try {
+        const [rows] = await db.query('SELECT * FROM Itinerary');
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 
 // READ (All for User)
 router.get('/user/:userId', async (req, res) => {

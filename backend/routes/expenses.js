@@ -15,6 +15,16 @@ router.post('/', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+// READ (All)
+router.get('/', async (req, res) => {
+    try {
+        const [rows] = await db.query('SELECT * FROM Expense');
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 
 // READ (All for Itinerary)
 router.get('/itinerary/:itineraryId', async (req, res) => {
