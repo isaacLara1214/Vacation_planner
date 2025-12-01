@@ -8,7 +8,7 @@ router.post('/', async (req, res) => {
     try {
         const [result] = await db.query(
             'INSERT INTO Destination (Itinerary_ID, City, Country, Notes) VALUES (?, ?, ?, ?)',
-            [Itinerary_ID, City, Country, Notes]
+            [Itinerary_ID, City, Country, Notes || null]
         );
         res.status(201).json({ message: 'Destination created', destinationId: result.insertId });
     } catch (err) {
@@ -18,7 +18,16 @@ router.post('/', async (req, res) => {
 // READ (All)
 router.get('/', async (req, res) => {
     try {
-        const [rows] = await db.query('SELECT * FROM Destination');
+        const userId = req.query.user_id;
+        let query = 'SELECT d.* FROM Destination d';
+        let params = [];
+        
+        if (userId) {
+            query += ' JOIN Itinerary i ON d.Itinerary_ID = i.Itinerary_ID WHERE i.User_ID = ?';
+            params.push(userId);
+        }
+        
+        const [rows] = await db.query(query, params);
         res.json(rows);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -42,7 +51,7 @@ router.put('/:id', async (req, res) => {
     try {
         await db.query(
             'UPDATE Destination SET City = ?, Country = ?, Notes = ? WHERE Destination_ID = ?',
-            [City, Country, Notes, req.params.id]
+            [City, Country, Notes || null, req.params.id]
         );
         res.json({ message: 'Destination updated' });
     } catch (err) {

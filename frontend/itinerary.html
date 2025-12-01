@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Itinerary Detail</title>
+  <link rel="stylesheet" href="itinerary-style.css">
+</head>
+<body>
+  <div class="itinerary-layout">
+    <!-- Left Panel with Header -->
+    <aside class="left-panel">
+      <header class="itinerary-header">
+        <nav class="breadcrumb"><a href="index.html">← Dashboard</a></nav>
+        <div id="trip-header">
+          <h1 id="trip-title">Loading...</h1>
+          <p id="trip-dates"></p>
+        </div>
+      </header>
+      
+      <div class="itinerary-content">
+        <section id="trip-details">
+          <p>Loading itinerary details...</p>
+        </section>
+
+        <section id="destinations-section" style="margin-top: 1rem;">
+          <div class="section-header">
+            <h2 style="margin: 0;">Destinations</h2>
+            <button id="add-destination-btn" class="primary-btn">Add Destination</button>
+          </div>
+          <div id="destinations-container">
+            <p>Loading destinations...</p>
+          </div>
+          <!-- Inline Add Destination Form (for new destinations) -->
+          <div id="add-destination-form-container" style="display:none;">
+            <form id="destination-inline-form" class="inline-form">
+              <div class="form-row">
+                <div class="form-field">
+                  <label for="dest-city">City</label>
+                  <input type="text" id="dest-city" name="dest-city" required>
+                </div>
+                <div class="form-field">
+                  <label for="dest-country">Country</label>
+                  <input type="text" id="dest-country" name="dest-country" required>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-field" style="flex:1;">
+                  <label for="dest-notes">Notes (optional)</label>
+                  <input type="text" id="dest-notes" name="dest-notes" placeholder="Optional notes...">
+                </div>
+              </div>
+              <div id="destination-error" class="inline-error" style="display:none;"></div>
+              <div class="inline-actions">
+                <button type="button" class="secondary-btn" id="cancel-destination">Cancel</button>
+                <button type="submit" id="save-destination-btn" class="primary-btn">Save Destination</button>
+              </div>
+            </form>
+          </div>
+        </section>
+      </div>
+    </aside>
+
+    <!-- Right Panel - Full-height Map -->
+    <aside class="right-panel">
+      <div id="map" class="map-container">
+        <div class="map-placeholder">Map will be displayed here</div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- No modal: inline form used above -->
+
+  <script src="itinerary.js"></script>
+</body>
+</html>

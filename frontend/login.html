@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vacation Planner - Login</title>
+    <link rel="stylesheet" href="login-style.css">
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-box">
+            <h1>Vacation Planner</h1>
+            <p class="subtitle">Plan your perfect getaway</p>
+            
+            <div id="error-message" class="error-message"></div>
+            
+            <!-- Login Form -->
+            <form id="login-form" class="auth-form">
+                <h2>Login</h2>
+                
+                <div class="form-group">
+                    <label for="login-email">Email</label>
+                    <input type="email" id="login-email" name="email" required autocomplete="email">
+                </div>
+                
+                <div class="form-group">
+                    <label for="login-password">Password</label>
+                    <input type="password" id="login-password" name="password" required 
+                           minlength="8" autocomplete="current-password">
+                </div>
+                
+                <button type="submit" class="btn btn-primary">Login</button>
+                
+                <p class="toggle-text">Don't have an account? <a href="#" onclick="showSignup(event)">Sign Up</a></p>
+            </form>
+            
+            <!-- Signup Form -->
+            <form id="signup-form" class="auth-form" style="display: none;">
+                <h2>Sign Up</h2>
+                
+                <div class="form-group">
+                    <label for="signup-name">Full Name</label>
+                    <input type="text" id="signup-name" name="name" required autocomplete="name">
+                </div>
+                
+                <div class="form-group">
+                    <label for="signup-email">Email</label>
+                    <input type="email" id="signup-email" name="email" required autocomplete="email">
+                </div>
+                
+                <div class="form-group">
+                    <label for="signup-password">Password</label>
+                    <input type="password" id="signup-password" name="password" required 
+                           minlength="8" autocomplete="new-password"
+                           pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$"
+                           title="Password must be at least 8 characters and contain at least one uppercase letter, one lowercase letter, and one number">
+                    <small class="help-text">Must be at least 8 characters with uppercase, lowercase, and number</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="signup-password-confirm">Confirm Password</label>
+                    <input type="password" id="signup-password-confirm" name="password-confirm" required 
+                           minlength="8" autocomplete="new-password">
+                </div>
+                
+                <button type="submit" class="btn btn-primary">Create Account</button>
+                
+                <p class="toggle-text">Already have an account? <a href="#" onclick="showLogin(event)">Login</a></p>
+            </form>
+        </div>
+    </div>
+
+    <script src="login.js"></script>
+</body>
+</html>

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vacation Planner</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1>Vacation Planner Dashboard</h1>
+        <div class="user-info">
+            <span id="welcome-message"></span>
+            <button onclick="logout()" class="logout-btn">Logout</button>
+        </div>
+    </header>
+
+    <main>
+        <section id="itineraries-section">
+            <div class="section-header">
+                <h2>Your Itineraries</h2>
+                <button id="create-itinerary-btn" class="primary-btn">Create Itinerary</button>
+            </div>
+            <div id="itineraries-container">
+                <p>Loading itineraries...</p>
+            </div>
+        </section>
+
+        <!-- Create Itinerary Modal -->
+        <div id="itinerary-modal" class="modal" aria-hidden="true">
+            <div class="modal-content">
+                <h3 id="itinerary-modal-title">Create New Itinerary</h3>
+                <form id="itinerary-form">
+                    <input type="hidden" id="itinerary-id" name="itinerary-id" />
+                    <label for="trip-name">Trip Name</label>
+                    <input type="text" id="trip-name" name="trip-name" required placeholder="e.g., Tokyo Adventure">
+
+                    <label for="start-date">Start Date</label>
+                    <input type="date" id="start-date" name="start-date" required>
+
+                    <label for="end-date">End Date</label>
+                    <input type="date" id="end-date" name="end-date" required>
+
+                    <div class="modal-actions">
+                        <button type="button" class="secondary-btn" id="cancel-itinerary">Cancel</button>
+                        <button type="submit" id="save-itinerary-btn" class="primary-btn">Save Itinerary</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </main>
+
+    <script src="app.js"></script>
+</body>
+</html>

@@ -18,7 +18,16 @@ router.post('/', async (req, res) => {
 // READ (All)
 router.get('/', async (req, res) => {
     try {
-        const [rows] = await db.query('SELECT * FROM Expense');
+        const userId = req.query.user_id;
+        let query = 'SELECT e.* FROM Expense e';
+        let params = [];
+        
+        if (userId) {
+            query += ' JOIN Itinerary i ON e.Itinerary_ID = i.Itinerary_ID WHERE i.User_ID = ?';
+            params.push(userId);
+        }
+        
+        const [rows] = await db.query(query, params);
         res.json(rows);
     } catch (err) {
         res.status(500).json({ error: err.message });
