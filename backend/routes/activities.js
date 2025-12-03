@@ -4,11 +4,11 @@ const db = require('../db');
 
 // CREATE
 router.post('/', async (req, res) => {
-    const { Destination_ID, Name, Date, Cost, Category, Address } = req.body;
+    const { Destination_ID, Name, Date, Cost, Category, Address, Priority } = req.body;
     try {
         const [result] = await db.query(
-            'INSERT INTO Activity (Destination_ID, Name, Date, Cost, Category, Address) VALUES (?, ?, ?, ?, ?, ?)',
-            [Destination_ID, Name, Date, Cost, Category, Address]
+            'INSERT INTO Activity (Destination_ID, Name, Date, Cost, Category, Address, Priority) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [Destination_ID, Name, Date, Cost, Category, Address, Priority || 999]
         );
         res.status(201).json({ message: 'Activity created', activityId: result.insertId });
     } catch (err) {
@@ -40,7 +40,7 @@ router.get('/', async (req, res) => {
 // READ (All for Destination)
 router.get('/destination/:destinationId', async (req, res) => {
     try {
-        const [rows] = await db.query('SELECT * FROM Activity WHERE Destination_ID = ?', [req.params.destinationId]);
+        const [rows] = await db.query('SELECT * FROM Activity WHERE Destination_ID = ? ORDER BY Priority ASC, Activity_ID ASC', [req.params.destinationId]);
         res.json(rows);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -49,11 +49,11 @@ router.get('/destination/:destinationId', async (req, res) => {
 
 // UPDATE
 router.put('/:id', async (req, res) => {
-    const { Name, Date, Cost, Category, Address } = req.body;
+    const { Name, Date, Cost, Category, Address, Priority } = req.body;
     try {
         await db.query(
-            'UPDATE Activity SET Name = ?, Date = ?, Cost = ?, Category = ?, Address = ? WHERE Activity_ID = ?',
-            [Name, Date, Cost, Category, Address, req.params.id]
+            'UPDATE Activity SET Name = ?, Date = ?, Cost = ?, Category = ?, Address = ?, Priority = ? WHERE Activity_ID = ?',
+            [Name, Date, Cost, Category, Address, Priority, req.params.id]
         );
         res.json({ message: 'Activity updated' });
     } catch (err) {

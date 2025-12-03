@@ -30,3 +30,8 @@ coverage/
 # Build
 dist/
 build/
+
+# local testing
+TEST_GUIDE.md
+EXAMPLE_DATA_README.md
+load_examples.ps1

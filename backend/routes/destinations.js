@@ -62,6 +62,11 @@ router.put('/:id', async (req, res) => {
 // DELETE
 router.delete('/:id', async (req, res) => {
     try {
+        // Delete all activities for this destination first
+        await db.query('DELETE FROM Activity WHERE Destination_ID = ?', [req.params.id]);
+        // Delete all accommodations for this destination
+        await db.query('DELETE FROM Accommodation WHERE Destination_ID = ?', [req.params.id]);
+        // Finally delete the destination
         await db.query('DELETE FROM Destination WHERE Destination_ID = ?', [req.params.id]);
         res.json({ message: 'Destination deleted' });
     } catch (err) {

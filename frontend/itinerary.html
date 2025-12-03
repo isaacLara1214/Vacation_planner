@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Itinerary Detail</title>
   <link rel="stylesheet" href="itinerary-style.css">
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
 </head>
 <body>
   <div class="itinerary-layout">
@@ -23,11 +25,17 @@
           <p>Loading itinerary details...</p>
         </section>
 
-        <section id="destinations-section" style="margin-top: 1rem;">
+        <!-- <section id="destinations-section" style="margin-top: 1rem;"> -->
           <div class="section-header">
-            <h2 style="margin: 0;">Destinations</h2>
-            <button id="add-destination-btn" class="primary-btn">Add Destination</button>
+            <div class="section-left">
+              <button class="collapse-toggle" data-target="#destinations-block" aria-label="Toggle Destinations" title="Toggle Destinations">▾</button>
+              <h2 class="section-title">Destinations</h2>
+            </div>
+            <div class="section-right">
+              <button id="add-destination-btn" class="primary-btn">Add Destination</button>
+            </div>
           </div>
+          <div id="destinations-block">
           <div id="destinations-container">
             <p>Loading destinations...</p>
           </div>
@@ -57,20 +65,108 @@
               </div>
             </form>
           </div>
+          </div>
+        </section>
+
+        <section id="activities-section" style="margin-top: 1.5rem;">
+          <div class="section-header">
+            <div class="section-left">
+              <button class="collapse-toggle" data-target="#activities-block" aria-label="Toggle Activities" title="Toggle Activities">▾</button>
+              <h2 class="section-title">Activities</h2>
+            </div>
+            <div class="section-right">
+              <button id="add-activity-btn" class="primary-btn">Add Activity</button>
+            </div>
+          </div>
+          <div id="activities-block">
+          <div id="activities-container">
+            <p>Loading activities...</p>
+          </div>
+          <!-- Inline Add Activity Form -->
+          <div id="add-activity-form-container" style="display:none;">
+            <form id="activity-inline-form" class="inline-form">
+              <div class="form-row">
+                <div class="form-field">
+                  <label for="activity-name">Name</label>
+                  <input type="text" id="activity-name" name="activity-name" required>
+                </div>
+                <div class="form-field">
+                  <label for="activity-category">Category</label>
+                  <select id="activity-category" name="activity-category">
+                    <option value="">Select category...</option>
+                    <option value="Sightseeing">Sightseeing</option>
+                    <option value="Nature">Nature</option>
+                    <option value="Dining">Dining</option>
+                    <option value="Nightlife">Nightlife</option>
+                    <option value="Entertainment">Entertainment</option>
+                    <option value="Culture">Culture</option>
+                    <option value="Shopping">Shopping</option>
+                    <option value="Adventure">Adventure</option>
+                    <option value="Wellness">Wellness</option>
+                    <option value="Transport">Transport</option>
+                    <option value="Events">Events</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-field">
+                  <label for="activity-destination">Destination</label>
+                  <select id="activity-destination" name="activity-destination" required>
+                    <option value="">Select destination...</option>
+                  </select>
+                </div>
+                <div class="form-field">
+                  <label for="activity-cost">Cost</label>
+                  <input type="number" step="0.01" id="activity-cost" name="activity-cost" placeholder="0.00">
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-field">
+                  <label for="activity-date">Date (optional)</label>
+                  <input type="date" id="activity-date" name="activity-date">
+                </div>
+                <div class="form-field" style="flex:1;">
+                  <label for="activity-address">Address (optional)</label>
+                  <input type="text" id="activity-address" name="activity-address" placeholder="Optional address...">
+                </div>
+              </div>
+              <div id="activity-error" class="inline-error" style="display:none;"></div>
+              <div class="inline-actions">
+                <button type="button" class="secondary-btn" id="cancel-activity">Cancel</button>
+                <button type="submit" id="save-activity-btn" class="primary-btn">Save Activity</button>
+              </div>
+            </form>
+          </div>
+          </div>
+        </section>
+
+        <!-- Day to Day Section -->
+        <section id="day-to-day-section">
+          <div class="section-header">
+            <div class="section-left">
+              <button class="collapse-toggle" data-target="#day-to-day-block" aria-label="Toggle Day to Day" title="Toggle Day to Day">▾</button>
+              <h2 class="section-title">Day to Day</h2>
+            </div>
+          </div>
+          <div id="day-to-day-block">
+          <div id="day-to-day-container">
+            <p>Loading daily itinerary...</p>
+          </div>
+          </div>
         </section>
       </div>
     </aside>
 
     <!-- Right Panel - Full-height Map -->
     <aside class="right-panel">
-      <div id="map" class="map-container">
-        <div class="map-placeholder">Map will be displayed here</div>
-      </div>
+      <div id="map" class="map-container"></div>
     </aside>
   </div>
 
   <!-- No modal: inline form used above -->
 
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="itinerary.js"></script>
 </body>
 </html>
