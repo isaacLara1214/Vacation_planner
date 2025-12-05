@@ -45,8 +45,14 @@ function formatDate(raw) {
 async function loadItinerary() {
   const id = getQueryParam('id');
   const container = document.getElementById('trip-details');
+  const loadingScreen = document.getElementById('loading-screen');
+  
   if (!id) {
     container.innerHTML = '<p class="error">Missing itinerary id.</p>';
+    if (loadingScreen) {
+      loadingScreen.classList.add('fade-out');
+      setTimeout(() => loadingScreen.style.display = 'none', 600);
+    }
     return;
   }
   try {
@@ -56,6 +62,10 @@ async function loadItinerary() {
     // Basic guard to ensure this itinerary belongs to the current user
     if (itinerary.User_ID && itinerary.User_ID !== currentUser.User_ID) {
       container.innerHTML = '<p class="error">You do not have access to this itinerary.</p>';
+      if (loadingScreen) {
+        loadingScreen.classList.add('fade-out');
+        setTimeout(() => loadingScreen.style.display = 'none', 600);
+      }
       return;
     }
     currentItinerary = itinerary;
@@ -65,8 +75,18 @@ async function loadItinerary() {
     await loadActivitiesForItinerary(id);
     initDestinationUI(id);
     initActivityUI(id);
+    initBudgetAnalyzer(id);
+    // Fade out loading screen after all content is loaded
+    if (loadingScreen) {
+      loadingScreen.classList.add('fade-out');
+      setTimeout(() => loadingScreen.style.display = 'none', 600);
+    }
   } catch (err) {
     container.innerHTML = `<p class="error">${err.message}</p>`;
+    if (loadingScreen) {
+      loadingScreen.classList.add('fade-out');
+      setTimeout(() => loadingScreen.style.display = 'none', 600);
+    }
   }
 }
 
@@ -530,6 +550,77 @@ function openEditActivityGlobal(activity, destinations) {
   });
 }
 
+async function saveActivityExpense(activityId, amount, activityDate, category) {
+  const itineraryId = getQueryParam('id');
+  
+  try {
+    // Validate inputs
+    if (!itineraryId) {
+      throw new Error('No itinerary ID found');
+    }
+    if (isNaN(amount) || amount <= 0) {
+      throw new Error('Amount must be a positive number');
+    }
+    
+    // Check if an expense already exists for this activity (by date and category)
+    const resp = await fetch(`${API_BASE_URL}/expenses/itinerary/${itineraryId}`);
+    let expenses = [];
+    if (resp.ok) {
+      expenses = await resp.json() || [];
+    }
+    
+    // Find existing expense for this activity (using activity ID encoded in notes or category+date combo)
+    const existingExpense = expenses.find(e => 
+      e.Notes && e.Notes.includes(`activity_${activityId}`)
+    );
+    
+    if (existingExpense) {
+      // Update existing expense
+      const updateResp = await fetch(`${API_BASE_URL}/expenses/${existingExpense.Expense_ID}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          Amount: amount,
+          Category: category,
+          Date: activityDate,
+          Notes: `activity_${activityId}`
+        })
+      });
+      if (!updateResp.ok) {
+        const errorText = await updateResp.text();
+        console.error('Update expense response:', errorText);
+        throw new Error(`Failed to update expense: ${updateResp.status} ${updateResp.statusText}`);
+      }
+    } else {
+      // Create new expense
+      const payload = {
+        Itinerary_ID: itineraryId,
+        Amount: amount,
+        Category: category,
+        Date: activityDate,
+        Notes: `activity_${activityId}`
+      };
+      
+      console.log('Sending expense payload:', payload);
+      
+      const createResp = await fetch(`${API_BASE_URL}/expenses`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      
+      if (!createResp.ok) {
+        const errorText = await createResp.text();
+        console.error('Create expense response:', createResp.status, errorText);
+        throw new Error(`Failed to create expense: ${createResp.status} ${createResp.statusText} - ${errorText}`);
+      }
+    }
+  } catch (err) {
+    console.error('Error saving activity expense:', err);
+    throw err;
+  }
+}
+
 async function deleteActivityGlobal(activityId) {
   if (!confirm('Delete this activity?')) return;
   try {
@@ -581,7 +672,7 @@ async function loadActivitiesForItinerary(itineraryId) {
 
     renderActivitiesForItinerary(allActivities, destinations);
     await updateMapMarkers(allActivities, destinations);
-    renderDayToDay(allActivities);
+    await renderDayToDay(allActivities);
   } catch (err) {
     container.innerHTML = `<p class="error">${err.message}</p>`;
   }
@@ -780,7 +871,7 @@ async function optimizeRoutes(activities) {
   return { suggestions, unoptimizable, sortedDates: Object.keys(activityByDate).sort() };
 }
 
-function renderDayToDay(activities) {
+async function renderDayToDay(activities) {
   const container = document.getElementById('day-to-day-container');
   
   // Clear container first to prevent duplicates
@@ -793,6 +884,31 @@ function renderDayToDay(activities) {
     container.innerHTML = '<p class="no-dated-activities">No activities with dates yet. Add dates to activities to see them in the day-to-day view.</p>';
     return;
   }
+  
+  // Fetch existing expenses for this itinerary
+  let expenses = [];
+  try {
+    const itineraryId = getQueryParam('id');
+    const resp = await fetch(`${API_BASE_URL}/expenses/itinerary/${itineraryId}`);
+    if (resp.ok) {
+      expenses = await resp.json() || [];
+    }
+  } catch (err) {
+    console.error('Error fetching expenses:', err);
+  }
+  
+  // Create a map of activity ID to expense amount for quick lookup
+  const expenseMap = {};
+  expenses.forEach(exp => {
+    if (exp.Notes && typeof exp.Notes === 'string') {
+      const match = exp.Notes.match(/activity_(\d+)/);
+      if (match) {
+        expenseMap[match[1]] = exp.Amount;
+      }
+    }
+  });
+  
+  console.log('Day-to-day expenses loaded:', expenseMap);
   
   // Group activities by date
   const activityByDate = {};
@@ -812,7 +928,7 @@ function renderDayToDay(activities) {
   optimizeContainer.style.marginBottom = '1rem';
   optimizeContainer.innerHTML = `
     <button id="optimize-routes-btn" class="primary-btn" style="width: 100%;">
-      🗺️ Optimize Routes - Suggest Undated Activities
+      Optimize Routes - Suggest Undated Activities
     </button>
     <div id="route-suggestions" style="margin-top: 1rem;"></div>
   `;
@@ -848,7 +964,7 @@ function renderDayToDay(activities) {
       alert('Error optimizing routes: ' + err.message);
     } finally {
       btn.disabled = false;
-      btn.textContent = '🗺️ Optimize Routes - Suggest Undated Activities';
+      btn.textContent = 'Optimize Routes - Suggest Undated Activities';
     }
   });
   
@@ -880,10 +996,11 @@ function renderDayToDay(activities) {
       
       if (activity.Address) {
         activityItem.classList.add('has-map-marker');
-        activityItem.addEventListener('click', () => {
-          showActivityOnMap(activity.Activity_ID);
-        });
       }
+      
+      const budgetLabel = activity.Cost ? ` • Budget: $${parseFloat(activity.Cost).toFixed(2)}` : '';
+      const existingExpense = expenseMap[activity.Activity_ID] || '';
+      const expenseValue = existingExpense ? parseFloat(existingExpense).toFixed(2) : '';
       
       activityItem.innerHTML = `
         <div class="day-activity-content">
@@ -891,13 +1008,84 @@ function renderDayToDay(activities) {
           <div class="day-activity-details">
             <span class="activity-destination-tag">${activity.destinationName || 'Unknown'}</span>
             ${activity.Category ? ' • ' + activity.Category : ''}
-            ${activity.Cost ? ` • $${parseFloat(activity.Cost).toFixed(2)}` : ''}
+            ${budgetLabel}
             ${activity.Address ? ' • 📍 ' + activity.Address : ''}
           </div>
+          <div class="day-activity-expense-input">
+            <label for="expense-${activity.Activity_ID}">Actual Spent:</label>
+            <div class="expense-input-group">
+              <span class="currency-symbol">$</span>
+              <input 
+                type="number" 
+                id="expense-${activity.Activity_ID}" 
+                class="actual-expense-input" 
+                step="0.01" 
+                min="0" 
+                placeholder="0.00"
+                value="${expenseValue}"
+                data-activity-id="${activity.Activity_ID}"
+              >
+            </div>
+          </div>
         </div>
+        ${activity.Address ? `<button class="day-activity-map-btn" data-activity-id="${activity.Activity_ID}" title="Show on map">📍</button>` : ''}
       `;
       
       dayActivitiesContainer.appendChild(activityItem);
+      
+      // Wire up map button if present
+      if (activity.Address) {
+        const mapBtn = activityItem.querySelector('.day-activity-map-btn');
+        if (mapBtn) {
+          mapBtn.addEventListener('click', () => {
+            showActivityOnMap(activity.Activity_ID);
+          });
+        }
+      }
+      
+      // Wire up expense input with change event instead of blur
+      const expenseInput = activityItem.querySelector(`#expense-${activity.Activity_ID}`);
+      if (expenseInput) {
+        expenseInput.addEventListener('change', async (e) => {
+          const amount = e.target.value.trim();
+          const itineraryId = getQueryParam('id');
+          
+          try {
+            if (amount === '' || parseFloat(amount) === 0) {
+              // If empty or zero, we might want to delete the expense
+              if (expenseMap[activity.Activity_ID]) {
+                // Delete existing expense
+                const resp = await fetch(`${API_BASE_URL}/expenses/itinerary/${itineraryId}`);
+                let expenses = [];
+                if (resp.ok) {
+                  expenses = await resp.json() || [];
+                }
+                const expenseToDelete = expenses.find(e => 
+                  e.Notes && e.Notes.includes(`activity_${activity.Activity_ID}`)
+                );
+                if (expenseToDelete) {
+                  await fetch(`${API_BASE_URL}/expenses/${expenseToDelete.Expense_ID}`, {
+                    method: 'DELETE'
+                  });
+                }
+                delete expenseMap[activity.Activity_ID];
+              }
+            } else {
+              // Save or update expense
+              // Extract just the date part (YYYY-MM-DD) from activity.Date
+              const dateOnly = activity.Date ? activity.Date.split('T')[0] : null;
+              await saveActivityExpense(activity.Activity_ID, parseFloat(amount), dateOnly, activity.Category || 'Other');
+              expenseMap[activity.Activity_ID] = amount;
+            }
+            // Update budget display after saving
+            await updateBudgetDisplay(itineraryId);
+          } catch (err) {
+            alert('Failed to save expense: ' + err.message);
+            // Reset the value on error
+            e.target.value = expenseValue;
+          }
+        });
+      }
     });
     
     dayGroup.appendChild(dayHeader);
@@ -1691,6 +1879,479 @@ function showDestinationOnMap(destinationId) {
 }
 
 // ===== END MAP FUNCTIONS =====
+
+// ===== BUDGET ANALYZER FUNCTIONS =====
+
+async function initBudgetAnalyzer(itineraryId) {
+  // Initialize budget widget click handler
+  const budgetWidgetTrigger = document.getElementById('budget-widget-trigger');
+  const budgetModalOverlay = document.getElementById('budget-modal-overlay');
+  const closeBudgetModal = document.getElementById('close-budget-modal');
+  const editBudgetBtn = document.getElementById('edit-budget-btn');
+  const budgetEditForm = document.getElementById('budget-edit-form');
+  const cancelBudgetEditBtn = document.getElementById('cancel-budget-edit');
+  const saveBudgetBtn = document.getElementById('save-budget-btn');
+  const newBudgetInput = document.getElementById('new-budget-input');
+
+  if (budgetWidgetTrigger) {
+    budgetWidgetTrigger.addEventListener('click', () => {
+      budgetModalOverlay.style.display = 'flex';
+      updateBudgetDisplay(itineraryId);
+    });
+  }
+
+  if (closeBudgetModal) {
+    closeBudgetModal.addEventListener('click', () => {
+      budgetModalOverlay.style.display = 'none';
+    });
+  }
+
+  // Close modal when clicking on overlay background
+  if (budgetModalOverlay) {
+    budgetModalOverlay.addEventListener('click', (e) => {
+      if (e.target === budgetModalOverlay) {
+        budgetModalOverlay.style.display = 'none';
+      }
+    });
+  }
+
+  // Category details modal close handler
+  const categoryDetailsOverlay = document.getElementById('category-details-overlay');
+  const closeCategoryDetailsBtn = document.getElementById('close-category-details');
+  
+  if (closeCategoryDetailsBtn) {
+    closeCategoryDetailsBtn.addEventListener('click', () => {
+      categoryDetailsOverlay.style.display = 'none';
+    });
+  }
+
+  if (categoryDetailsOverlay) {
+    categoryDetailsOverlay.addEventListener('click', (e) => {
+      if (e.target === categoryDetailsOverlay) {
+        categoryDetailsOverlay.style.display = 'none';
+      }
+    });
+  }
+
+  // Edit budget button handler
+  if (editBudgetBtn) {
+    editBudgetBtn.addEventListener('click', () => {
+      newBudgetInput.value = currentItinerary.Budget || 0;
+      budgetEditForm.style.display = 'block';
+    });
+  }
+
+  // Cancel budget edit
+  if (cancelBudgetEditBtn) {
+    cancelBudgetEditBtn.addEventListener('click', () => {
+      budgetEditForm.style.display = 'none';
+      newBudgetInput.value = '';
+    });
+  }
+
+  // Save budget changes
+  if (saveBudgetBtn) {
+    saveBudgetBtn.addEventListener('click', async () => {
+      const newBudget = parseFloat(newBudgetInput.value);
+      if (isNaN(newBudget) || newBudget < 0) {
+        alert('Please enter a valid budget amount');
+        return;
+      }
+      try {
+        const updateResp = await fetch(`${API_BASE_URL}/itineraries/${itineraryId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            Trip_Name: currentItinerary.Trip_Name,
+            Start_Date: currentItinerary.Start_Date,
+            End_Date: currentItinerary.End_Date,
+            Budget: newBudget
+          })
+        });
+        if (!updateResp.ok) throw new Error('Failed to update budget');
+        currentItinerary.Budget = newBudget;
+        budgetEditForm.style.display = 'none';
+        updateBudgetDisplay(itineraryId);
+      } catch (err) {
+        alert('Error updating budget: ' + err.message);
+      }
+    });
+  }
+
+  // Initial budget display update
+  updateBudgetDisplay(itineraryId);
+}
+
+async function updateBudgetDisplay(itineraryId) {
+  try {
+    // Fetch all expenses for this itinerary (actual expenses)
+    const resp = await fetch(`${API_BASE_URL}/expenses/itinerary/${itineraryId}`);
+    let expenses = [];
+    if (resp.ok) {
+      expenses = await resp.json() || [];
+    }
+
+    // Get destinations for this itinerary to filter activities
+    const destinationsResp = await fetch(`${API_BASE_URL}/destinations/itinerary/${itineraryId}`);
+    let destinations = [];
+    if (destinationsResp.ok) {
+      destinations = await destinationsResp.json() || [];
+    }
+
+    const destinationIds = new Set(destinations.map(d => d.Destination_ID));
+
+    // Fetch all activities and filter by this itinerary's destinations
+    const activitiesResp = await fetch(`${API_BASE_URL}/activities?user_id=${currentUser.User_ID}`);
+    let allActivities = [];
+    if (activitiesResp.ok) {
+      allActivities = await activitiesResp.json() || [];
+    }
+
+    // Filter activities to only include those for this itinerary's destinations
+    const activities = allActivities.filter(a => destinationIds.has(a.Destination_ID));
+
+    // Fetch accommodations for this itinerary's destinations
+    let accommodations = [];
+    for (const destId of destinationIds) {
+      try {
+        const accomResp = await fetch(`${API_BASE_URL}/accommodations/destination/${destId}`);
+        if (accomResp.ok) {
+          const destAccommodations = await accomResp.json() || [];
+          accommodations = accommodations.concat(destAccommodations);
+        }
+      } catch (err) {
+        console.error(`Error fetching accommodations for destination ${destId}:`, err);
+      }
+    }
+
+    // Calculate PLANNED expenses (Activity costs + Accommodation costs)
+    let plannedExpenses = 0;
+    let plannedByCategory = {};
+
+    activities.forEach(activity => {
+      const amount = parseFloat(activity.Cost) || 0;
+      if (amount > 0) {
+        plannedExpenses += amount;
+        const category = activity.Category || 'Other';
+        plannedByCategory[category] = (plannedByCategory[category] || 0) + amount;
+      }
+    });
+
+    accommodations.forEach(accom => {
+      const amount = parseFloat(accom.Cost) || 0;
+      if (amount > 0) {
+        plannedExpenses += amount;
+        plannedByCategory['Accommodation'] = (plannedByCategory['Accommodation'] || 0) + amount;
+      }
+    });
+
+    // Calculate ACTUAL expenses (from expenses table)
+    let actualExpenses = 0;
+    let actualByCategory = {};
+
+    expenses.forEach(exp => {
+      const amount = parseFloat(exp.Amount) || 0;
+      actualExpenses += amount;
+      // Extract category from the expense
+      const category = exp.Category || 'Other';
+      actualByCategory[category] = (actualByCategory[category] || 0) + amount;
+    });
+    
+    console.log('Budget Display - Expenses:', expenses);
+    console.log('Budget Display - Actual Expenses Total:', actualExpenses);
+
+    // Get trip budget
+    const tripBudget = currentItinerary && currentItinerary.Budget ? parseFloat(currentItinerary.Budget) : 0;
+    const remaining = tripBudget - actualExpenses;
+
+    // Update widget display
+    document.getElementById('trip-budget-display').textContent = `$${tripBudget.toFixed(2)}`;
+    document.getElementById('total-expenses-display').textContent = `$${plannedExpenses.toFixed(2)}`;
+    
+    const remainingDisplay = document.getElementById('budget-remaining-display');
+    remainingDisplay.textContent = `$${remaining.toFixed(2)}`;
+    
+    // Change color based on budget status
+    if (remaining < 0) {
+      remainingDisplay.style.color = '#e74c3c'; // Red for over budget
+    } else if (remaining < tripBudget * 0.1) {
+      remainingDisplay.style.color = '#f39c12'; // Orange for low budget
+    } else {
+      remainingDisplay.style.color = '#27ae60'; // Green for healthy budget
+    }
+
+    // Update modal display
+    const modalTripBudget = document.getElementById('modal-trip-budget');
+    const modalPlannedExpenses = document.getElementById('modal-planned-expenses');
+    const modalActualExpenses = document.getElementById('modal-actual-expenses');
+    const modalTotalExpenses = document.getElementById('modal-total-expenses');
+    const modalRemaining = document.getElementById('modal-remaining-budget');
+    
+    if (modalTripBudget) modalTripBudget.textContent = `$${tripBudget.toFixed(2)}`;
+    if (modalPlannedExpenses) modalPlannedExpenses.textContent = `$${plannedExpenses.toFixed(2)}`;
+    if (modalActualExpenses) modalActualExpenses.textContent = `$${actualExpenses.toFixed(2)}`;
+    if (modalTotalExpenses) modalTotalExpenses.textContent = `$${plannedExpenses.toFixed(2)}`;
+    if (modalRemaining) modalRemaining.textContent = `$${remaining.toFixed(2)}`;
+    
+    if (modalRemaining) {
+      if (remaining < 0) {
+        modalRemaining.style.color = '#e74c3c';
+      } else if (remaining < tripBudget * 0.1) {
+        modalRemaining.style.color = '#f39c12';
+      } else {
+        modalRemaining.style.color = '#27ae60';
+      }
+    }
+
+    // Render expense breakdown - show both planned and actual
+    renderExpenseBreakdown(plannedByCategory, actualByCategory, itineraryId);
+  } catch (err) {
+    console.error('Error updating budget display:', err);
+  }
+}
+
+function renderExpenseBreakdown(plannedByCategory, actualByCategory, itineraryId) {
+  const container = document.getElementById('expense-breakdown-container');
+  
+  // Get all unique categories from both planned and actual
+  const allCategories = new Set([
+    ...Object.keys(plannedByCategory || {}),
+    ...Object.keys(actualByCategory || {})
+  ]);
+  
+  if (allCategories.size === 0) {
+    container.innerHTML = '<p>No expenses recorded yet.</p>';
+    return;
+  }
+
+  // Sort categories by planned amount descending
+  const sortedCategories = Array.from(allCategories)
+    .sort((a, b) => (plannedByCategory[b] || 0) - (plannedByCategory[a] || 0));
+
+  container.innerHTML = '';
+  
+  sortedCategories.forEach((category) => {
+    const plannedAmount = plannedByCategory[category] || 0;
+    const actualAmount = actualByCategory[category] || 0;
+    
+    const item = document.createElement('div');
+    item.className = 'expense-category-item';
+    
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'expense-category-name';
+    nameSpan.textContent = category;
+    
+    const amountsDiv = document.createElement('div');
+    amountsDiv.style.display = 'flex';
+    amountsDiv.style.gap = '2rem';
+    amountsDiv.style.alignItems = 'center';
+    
+    const plannedSpan = document.createElement('span');
+    plannedSpan.className = 'expense-category-amount';
+    plannedSpan.style.textAlign = 'right';
+    plannedSpan.style.minWidth = '80px';
+    plannedSpan.title = 'Planned';
+    plannedSpan.innerHTML = `<span style="font-size: 0.75rem; color: #999; display: block;">Plan:</span> $${plannedAmount.toFixed(2)}`;
+    
+    const actualSpan = document.createElement('span');
+    actualSpan.className = 'expense-category-amount';
+    actualSpan.style.textAlign = 'right';
+    actualSpan.style.minWidth = '80px';
+    actualSpan.title = 'Actual';
+    actualSpan.innerHTML = `<span style="font-size: 0.75rem; color: #999; display: block;">Actual:</span> $${actualAmount.toFixed(2)}`;
+    
+    amountsDiv.appendChild(plannedSpan);
+    amountsDiv.appendChild(actualSpan);
+    
+    item.appendChild(nameSpan);
+    item.appendChild(amountsDiv);
+    
+    // Add click handler to show category details
+    item.addEventListener('click', () => {
+      showCategoryDetails(category, itineraryId);
+    });
+    
+    container.appendChild(item);
+  });
+}
+
+async function showCategoryDetails(category, itineraryId) {
+  try {
+    // Fetch expenses for this itinerary
+    const expensesResp = await fetch(`${API_BASE_URL}/expenses/itinerary/${itineraryId}`);
+    let expenses = [];
+    if (expensesResp.ok) {
+      expenses = await expensesResp.json() || [];
+    }
+
+    // Get destinations for this itinerary
+    const destinationsResp = await fetch(`${API_BASE_URL}/destinations/itinerary/${itineraryId}`);
+    let destinations = [];
+    if (destinationsResp.ok) {
+      destinations = await destinationsResp.json() || [];
+    }
+
+    const destinationIds = new Set(destinations.map(d => d.Destination_ID));
+
+    // Fetch all activities
+    const activitiesResp = await fetch(`${API_BASE_URL}/activities?user_id=${currentUser.User_ID}`);
+    let allActivities = [];
+    if (activitiesResp.ok) {
+      allActivities = await activitiesResp.json() || [];
+    }
+
+    // Filter activities by this itinerary's destinations
+    const activities = allActivities.filter(a => destinationIds.has(a.Destination_ID));
+
+    // Fetch accommodations for this itinerary's destinations
+    let accommodations = [];
+    for (const destId of destinationIds) {
+      try {
+        const accomResp = await fetch(`${API_BASE_URL}/accommodations/destination/${destId}`);
+        if (accomResp.ok) {
+          const destAccommodations = await accomResp.json() || [];
+          accommodations = accommodations.concat(destAccommodations);
+        }
+      } catch (err) {
+        console.error(`Error fetching accommodations for destination ${destId}:`, err);
+      }
+    }
+
+    // Collect all items in this category
+    const categoryItems = [];
+    let totalPlanned = 0;
+    let totalActual = 0;
+
+    // Add expenses from the Expense table (actual expenses)
+    expenses.forEach(exp => {
+      if (exp.Category === category) {
+        const amount = parseFloat(exp.Amount) || 0;
+        categoryItems.push({
+          type: 'Actual Expense',
+          name: exp.Notes ? exp.Notes.replace(/activity_\d+/, 'Activity Expense') : `Expense on ${exp.Date || 'N/A'}`,
+          plannedAmount: 0,
+          actualAmount: amount,
+          date: exp.Date,
+          category: exp.Category
+        });
+        totalActual += amount;
+      }
+    });
+
+    // Add activities in this category
+    activities.forEach(activity => {
+      if (activity.Category === category) {
+        const plannedAmount = parseFloat(activity.Cost) || 0;
+        
+        // Find if there's an actual expense for this activity
+        let actualAmount = 0;
+        const activityExpense = expenses.find(e => 
+          e.Notes && e.Notes.includes(`activity_${activity.Activity_ID}`)
+        );
+        if (activityExpense) {
+          actualAmount = parseFloat(activityExpense.Amount) || 0;
+        }
+        
+        if (plannedAmount > 0 || actualAmount > 0) {
+          categoryItems.push({
+            type: 'Activity',
+            name: activity.Name,
+            plannedAmount: plannedAmount,
+            actualAmount: actualAmount,
+            date: activity.Date,
+            category: activity.Category
+          });
+          totalPlanned += plannedAmount;
+          totalActual += actualAmount;
+        }
+      }
+    });
+
+    // Add accommodations if category is 'Accommodation'
+    if (category === 'Accommodation') {
+      accommodations.forEach(accom => {
+        const plannedAmount = parseFloat(accom.Cost) || 0;
+        if (plannedAmount > 0) {
+          categoryItems.push({
+            type: 'Accommodation',
+            name: accom.Name,
+            plannedAmount: plannedAmount,
+            actualAmount: 0,
+            date: accom.Check_In,
+            category: 'Accommodation'
+          });
+          totalPlanned += plannedAmount;
+        }
+      });
+    }
+
+    // Sort by date (newest first)
+    categoryItems.sort((a, b) => {
+      if (!a.date) return 1;
+      if (!b.date) return -1;
+      return new Date(b.date) - new Date(a.date);
+    });
+
+    // Update modal
+    const categoryDetailsOverlay = document.getElementById('category-details-overlay');
+    const categoryDetailsTitle = document.getElementById('category-details-title');
+    const categoryTotal = document.getElementById('category-total');
+    const itemsContainer = document.getElementById('category-items-container');
+
+    categoryDetailsTitle.textContent = `${category} Details`;
+    categoryTotal.innerHTML = `
+      <div style="display: flex; gap: 2rem; align-items: center;">
+        <div>
+          <div style="font-size: 0.75rem; color: #999; margin-bottom: 0.25rem;">Planned:</div>
+          <div style="font-size: 1.2rem; font-weight: 700;">$${totalPlanned.toFixed(2)}</div>
+        </div>
+        <div>
+          <div style="font-size: 0.75rem; color: #999; margin-bottom: 0.25rem;">Actual:</div>
+          <div style="font-size: 1.2rem; font-weight: 700;">$${totalActual.toFixed(2)}</div>
+        </div>
+      </div>
+    `;
+
+    // Render items
+    if (categoryItems.length === 0) {
+      itemsContainer.innerHTML = '<p>No items in this category.</p>';
+    } else {
+      itemsContainer.innerHTML = '';
+      categoryItems.forEach(item => {
+        const itemEl = document.createElement('div');
+        itemEl.className = 'category-item';
+        itemEl.innerHTML = `
+          <div class="category-item-details">
+            <div class="category-item-name">${item.name}</div>
+            <div class="category-item-meta">
+              <span class="category-item-type">${item.type}</span>
+              ${item.date ? `<span>${formatDate(item.date)}</span>` : '<span>No date</span>'}
+            </div>
+          </div>
+          <div class="category-item-costs" style="display: flex; gap: 1rem; text-align: right;">
+            <div style="min-width: 80px;">
+              <div style="font-size: 0.7rem; color: #999;">Plan</div>
+              <div>$${item.plannedAmount.toFixed(2)}</div>
+            </div>
+            <div style="min-width: 80px;">
+              <div style="font-size: 0.7rem; color: #999;">Actual</div>
+              <div>$${item.actualAmount.toFixed(2)}</div>
+            </div>
+          </div>
+        `;
+        itemsContainer.appendChild(itemEl);
+      });
+    }
+
+    // Show modal
+    categoryDetailsOverlay.style.display = 'flex';
+  } catch (err) {
+    console.error('Error showing category details:', err);
+    alert('Error loading category details');
+  }
+}
+
+// ===== END BUDGET ANALYZER FUNCTIONS =====
 
 document.addEventListener('DOMContentLoaded', () => {
   if (!checkAuth()) return;

@@ -14,6 +14,7 @@ CREATE TABLE Itinerary(
     Trip_Name VARCHAR(100),
     Start_Date DATE,
     End_Date DATE,
+    Budget DECIMAL(10,2) DEFAULT 0.00,
     FOREIGN KEY (User_ID) REFERENCES User(User_ID)
 );
 

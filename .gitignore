@@ -35,3 +35,6 @@ build/
 TEST_GUIDE.md
 EXAMPLE_DATA_README.md
 load_examples.ps1
+*.ps1
+project.md
+VIDEO_DEMO_OUTLINE.md

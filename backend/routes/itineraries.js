@@ -4,11 +4,19 @@ const db = require('../db');
 
 // CREATE
 router.post('/', async (req, res) => {
-    const { User_ID, Trip_Name, Start_Date, End_Date } = req.body;
+    let { User_ID, Trip_Name, Start_Date, End_Date, Budget } = req.body;
     try {
+        // Convert ISO date strings to YYYY-MM-DD format if they're in ISO format
+        if (Start_Date && typeof Start_Date === 'string' && Start_Date.includes('T')) {
+            Start_Date = Start_Date.split('T')[0];
+        }
+        if (End_Date && typeof End_Date === 'string' && End_Date.includes('T')) {
+            End_Date = End_Date.split('T')[0];
+        }
+        
         const [result] = await db.query(
-            'INSERT INTO Itinerary (User_ID, Trip_Name, Start_Date, End_Date) VALUES (?, ?, ?, ?)',
-            [User_ID, Trip_Name, Start_Date, End_Date]
+            'INSERT INTO Itinerary (User_ID, Trip_Name, Start_Date, End_Date, Budget) VALUES (?, ?, ?, ?, ?)',
+            [User_ID, Trip_Name, Start_Date, End_Date, Budget || 0]
         );
         res.status(201).json({ message: 'Itinerary created', itineraryId: result.insertId });
     } catch (err) {
@@ -58,14 +66,24 @@ router.get('/:id', async (req, res) => {
 
 // UPDATE
 router.put('/:id', async (req, res) => {
-    const { Trip_Name, Start_Date, End_Date } = req.body;
+    let { Trip_Name, Start_Date, End_Date, Budget } = req.body;
     try {
+        // Convert ISO date strings to YYYY-MM-DD format if they're in ISO format
+        if (Start_Date && typeof Start_Date === 'string' && Start_Date.includes('T')) {
+            Start_Date = Start_Date.split('T')[0];
+        }
+        if (End_Date && typeof End_Date === 'string' && End_Date.includes('T')) {
+            End_Date = End_Date.split('T')[0];
+        }
+        
+        const budgetValue = Budget !== undefined ? Budget : 0;
         await db.query(
-            'UPDATE Itinerary SET Trip_Name = ?, Start_Date = ?, End_Date = ? WHERE Itinerary_ID = ?',
-            [Trip_Name, Start_Date, End_Date, req.params.id]
+            'UPDATE Itinerary SET Trip_Name = ?, Start_Date = ?, End_Date = ?, Budget = ? WHERE Itinerary_ID = ?',
+            [Trip_Name, Start_Date, End_Date, budgetValue, req.params.id]
         );
         res.json({ message: 'Itinerary updated' });
     } catch (err) {
+        console.error('Error updating itinerary:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -73,9 +91,31 @@ router.put('/:id', async (req, res) => {
 // DELETE
 router.delete('/:id', async (req, res) => {
     try {
-        await db.query('DELETE FROM Itinerary WHERE Itinerary_ID = ?', [req.params.id]);
+        const itineraryId = req.params.id;
+        
+        // Get all destinations for this itinerary
+        const [destinations] = await db.query('SELECT Destination_ID FROM Destination WHERE Itinerary_ID = ?', [itineraryId]);
+        const destinationIds = destinations.map(d => d.Destination_ID);
+        
+        // Delete all activities for these destinations
+        if (destinationIds.length > 0) {
+            await db.query('DELETE FROM Activity WHERE Destination_ID IN (?)', [destinationIds]);
+            // Delete all accommodations for these destinations
+            await db.query('DELETE FROM Accommodation WHERE Destination_ID IN (?)', [destinationIds]);
+        }
+        
+        // Delete all expenses for this itinerary
+        await db.query('DELETE FROM Expense WHERE Itinerary_ID = ?', [itineraryId]);
+        
+        // Delete all destinations for this itinerary
+        await db.query('DELETE FROM Destination WHERE Itinerary_ID = ?', [itineraryId]);
+        
+        // Delete the itinerary
+        await db.query('DELETE FROM Itinerary WHERE Itinerary_ID = ?', [itineraryId]);
+        
         res.json({ message: 'Itinerary deleted' });
     } catch (err) {
+        console.error('Error deleting itinerary:', err);
         res.status(500).json({ error: err.message });
     }
 });
